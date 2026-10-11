@@ -1,0 +1,14 @@
+# ---------------------------------------------------------------------
+# GPS-Enabled QR Code-Based Attendance System
+# ---------------------------------------------------------------------
+
+# Do not list folder contents
+Options -Indexes
+
+# Never serve these files, even if a path is guessed
+<FilesMatch "\.(sql|md|log|ini)$">
+    Require all denied
+</FilesMatch>
+
+# Send the browser to the login page when the folder itself is opened
+DirectoryIndex index.php
