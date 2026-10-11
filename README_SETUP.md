@@ -30,7 +30,10 @@ Every function your supervisor listed is implemented and working:
 | | Assign class to a lecturer | `admin/class_edit.php` |
 | | Access the class records | `admin/records.php` |
 | | Log out | `logout.php` |
-| **System Administrator** | Super user | `sysadmin/logs.php`, `sysadmin/health.php` |
+| **System Administrator** | Super user | `sysadmin/users.php`, `sysadmin/logs.php`, `sysadmin/health.php` |
+| | Add users (create accounts) | `sysadmin/users.php` |
+| | Deactivate / reactivate users | `sysadmin/users.php` |
+| | Reset a user's password | `sysadmin/users.php` |
 | | Troubleshoot the system | `sysadmin/health.php` (10 automated diagnostics) |
 | **System** | Initializing the generation of the QR-code | `api/qr_issue.php` |
 | | Geolocation mapping | `includes/geolocation.php`, `api/submit_scan.php` |
@@ -50,6 +53,23 @@ All applied **on the server**, never in the browser (`api/submit_scan.php`):
 8. The student's GPS position is inside the geofence (Haversine distance ≤ 50 m)
 
 A rejected scan is written to the audit trail with the reason, which is what makes the System Administrator's "troubleshoot" function real rather than decorative.
+
+### Account management (System Administrator only)
+
+Only the **System Administrator** can add users. There is no self-registration, and the School Administrator cannot create accounts. The reasons:
+
+- **Least privilege** — the School Administrator manages classes and enrolment; the System Administrator manages identity.
+- **Accountability** — every account action is written to `system_logs`.
+- **Anti-fraud** — nobody can create an account in order to fake attendance.
+
+`sysadmin/users.php` provides:
+
+- **Create user** — full name, e-mail, role, initial password (at least 8 characters). Students also need a unique registration number. E-mail addresses must be unique.
+- **Deactivate / reactivate** — a deactivated user cannot log in, and an already logged-in user loses access on the next page request. A System Administrator cannot deactivate their own account. Deactivated lecturers and students no longer appear in the class create/edit pickers. Accounts are deactivated rather than deleted so that attendance history and the audit trail stay intact.
+- **Reset password** — the administrator sets a new password for any user.
+- **Search and filter** by name, e-mail, registration number or role.
+
+All four actions are protected by CSRF tokens and restricted to the `system_admin` role. Passwords are stored as bcrypt hashes.
 
 ---
 
@@ -83,6 +103,12 @@ Go to <http://localhost/phpmyadmin> → **Import** → **Choose File** → selec
 This creates the database `gps_qr_attendance` with all 7 tables and demonstration data.
 (The file starts with `DROP DATABASE IF EXISTS`, so re-importing it resets everything to a clean demonstration state — useful before a defence.)
 
+**Upgrading an existing database** (installed before user management was added): re-importing resets all data, so to keep your data run this once in phpMyAdmin → SQL instead:
+
+```sql
+ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER reg_no;
+```
+
 **Step 4 — check the installation**
 
 Open <http://localhost/gps_qr_attendance/setup_check.php>
@@ -107,6 +133,8 @@ Open <http://localhost/gps_qr_attendance/index.php>
 | Students (158701, 158745, 158802, 158833) | `amina.hassan@strathmore.edu` etc. | `Student@123` |
 
 Passwords are stored as **bcrypt hashes** (`password_hash()`), never as plain text.
+
+These accounts are demonstration data. New accounts are created by the System Administrator under **Manage Users**.
 
 ---
 
@@ -141,8 +169,10 @@ Click **Mark the N student(s) without a scan as absent** for the bulk action.
 Then **Export as CSV** (register, summary and matrix) and open one in Excel.
 
 **Minute 6 — System Administrator** (`sysadmin@strathmore.edu`)
+**Manage Users** → create a student (name, e-mail, registration number, initial password) → **Deactivate** the account and show that logging in as that user is refused → **Reactivate** it.
+*Say:* "Only the System Administrator creates accounts, so nobody can register a fake student to obtain attendance."
 **Troubleshoot** → walk through the 10 diagnostics (all green), then show **System Logs** and filter for
-`geofence` — every rejection is recorded with the student, the reason and the IP.
+`geofence` — every rejection is recorded with the student, the reason and the IP. Filter for `user_` to show the account actions.
 *Say:* "The audit trail is what makes the System Administrator's troubleshooting function meaningful."
 
 ---
@@ -163,13 +193,16 @@ Use the laptop webcam to scan the QR code shown on the same screen, or open the 
 **Option B — real phones over HTTPS (best for the demo)**
 1. Find the laptop's IP address: open Command Prompt and run `ipconfig` (look for *IPv4 Address*, e.g. `192.168.1.5`).
 2. Make sure Apache is listening on 443 (XAMPP enables SSL by default; if `https://localhost` does not open, uncomment `Include conf/extra/httpd-ssl.conf` in `C:\xampp\apache\conf\httpd.conf` and restart Apache).
-3. In `config/config.php` set:
+3. Open the lecturer pages through the same HTTPS address (`https://192.168.1.5/gps_qr_attendance`), **not** `localhost`. The application builds the QR code from the address you browse with, so this is enough. Optionally, pin it in `config/config.php`:
    ```php
    define('BASE_URL_OVERRIDE', 'https://192.168.1.5/gps_qr_attendance');
    ```
+   Leave it empty if the laptop's IP changes between sessions (DHCP).
 4. Allow Apache through the Windows Firewall for **private** networks.
 5. On each phone: open `https://192.168.1.5/gps_qr_attendance`, accept the self-signed certificate warning
-   (*Advanced → Proceed*), log in as a student, and scan.
+   (*Advanced → Proceed*), log in as a student, allow the camera and location prompts, and scan.
+
+If **Use my current position** reports *permission was denied*, allow Location for the site in the browser's site settings and make sure Windows **Location services** (including *Let desktop apps access your location*) are on. As a fallback use **Use campus venue coordinates** or type coordinates in by hand.
 
 **Why the QR code contains the address above:** the QR encodes
 `{BASE_URL}/student/scan.php?token=…`. If the QR was generated from `localhost`, a phone cannot open it;
@@ -184,12 +217,13 @@ Use **Use campus venue coordinates** on the Start Session page, which fills in
 
 ## 7. Corrections to make to the schema diagram
 
-The code is the source of truth and it differs from the schema figure in four small ways.
+The code is the source of truth and it differs from the schema figure in five small ways.
 Update the **Figure 4.3 database schema** diagram accordingly, or ask me to regenerate it:
 
 | Table | Change |
 |---|---|
 | `USER` | **add** `reg_no VARCHAR(30) NULL` — students are identified by registration number |
+| `USER` | **add** `is_active TINYINT(1) NOT NULL DEFAULT 1` — set to 0 when the System Administrator deactivates an account |
 | `SESSION` | **add** `created_at DATETIME` |
 | `ATTENDANCE_RECORD` | **add** `distance_m DECIMAL(8,2)` — the metres from the reference point, shown to the student and kept as evidence |
 | `ATTENDANCE_RECORD` | **change** `status` from `ENUM('present','edited')` to **`ENUM('present','absent','late')`** — "edited" was never a status; `is_edited` already records that |
@@ -211,8 +245,9 @@ gps_qr_attendance/
 │   └── database.php           PDO connection (also aligns the MySQL clock with PHP)
 ├── includes/
 │   ├── bootstrap.php          single entry point for every page
-│   ├── functions.php          helpers: escaping, CSRF, flash, audit log, formatting
-│   ├── auth.php               login / logout
+│   ├── functions.php          helpers: escaping, CSRF, flash, audit log, formatting,
+│   │                          role checks (require_role also blocks deactivated users)
+│   ├── auth.php               login / logout (refuses deactivated accounts)
 │   ├── geolocation.php        Haversine + geofence check
 │   ├── queries.php            every domain query
 │   ├── header.php / footer.php  shared layout and role-based navigation
@@ -220,7 +255,8 @@ gps_qr_attendance/
 │                              attendance_edit, export
 ├── student/                   classes, scan, records
 ├── admin/                     classes, class_new, class_edit, records
-├── sysadmin/                  logs, health (troubleshooting)
+├── sysadmin/                  users (create / deactivate / reset password), logs,
+│                              health (troubleshooting)
 ├── api/
 │   ├── qr_issue.php           issues/rotates the token (lecturer only)
 │   ├── qr_status.php          live feed for the lecturer's screen
@@ -264,6 +300,14 @@ Included in that run:
 - the troubleshooting page reports 0 failing and 0 warning checks
 - logout works and the protected pages become inaccessible
 
+The user-management feature was added afterwards and was checked separately over HTTP against the local database (it is **not** part of the 81 automated checks above):
+
+- the Manage Users page loads for the System Administrator
+- a new student account is created and stored, and a `user_created` entry appears in the audit trail
+- deactivating the account sets `is_active = 0`, and a login attempt is refused with *"This account has been deactivated"*
+
+Reactivation, password reset and the immediate logout of an already signed-in user after deactivation have not been exercised automatically — try them once before your defence.
+
 ---
 
 ## 10. Before you submit or demo
@@ -286,3 +330,10 @@ Included in that run:
 | Every scan says the code expired | Your PHP and MySQL clocks disagree — `config/database.php` already syncs them, so re-import `config/database.php` |
 | The QR code opens on the laptop but not on a phone | The QR contains `localhost` — set `BASE_URL_OVERRIDE`, see section 6 |
 | Students are marked *late* unexpectedly | A scan more than 15 minutes after the session start time is late; change `LATE_AFTER_MINUTES` in `config/config.php` |
+| *Unknown column 'is_active'* after pulling the latest code | Your database predates user management — run the `ALTER TABLE` statement in section 3 |
+| *This account has been deactivated* at login | The System Administrator deactivated it — reactivate it under **Manage Users** |
+| A deactivated lecturer or student is missing from the class pickers | Intended: only active users are offered. Reactivate the account to list them again |
+
+## 12. Source control
+
+The project is hosted at <https://github.com/CarsonBaraka04/gps_qr_attendance> (branch `main`). The repository root is this folder, not `C:\xampp\htdocs`. After making changes run `git add .`, `git commit -m "message"` and `git push` from `C:\xampp\htdocs\gps_qr_attendance`.
