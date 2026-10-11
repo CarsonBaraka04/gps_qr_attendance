@@ -184,7 +184,21 @@ This is the one thing that trips people up, so read it before you demo.
 Chrome and Safari only expose the **camera** and the **GPS position** on a *secure context*:
 `https://` or `http://localhost`. On a plain `http://192.168.x.x` address **both are blocked**.
 
-The application detects this and shows a warning banner with a manual fallback. You have two options:
+### Why HTTPS and not HTTP?
+
+If a panelist asks, the answer is:
+
+1. **Browser requirement (the main reason)** — the camera and the Geolocation API are only available on a secure context. Over plain `http://192.168.x.x` both are blocked, so a student could not scan the QR code or send a position and the core feature would fail.
+2. **Credentials** — over HTTP, e-mails and passwords travel in plain text and can be captured by anyone on the same Wi-Fi. HTTPS encrypts them.
+3. **Session cookies** — a stolen session cookie lets someone impersonate a student or lecturer. HTTPS prevents it being read in transit.
+4. **Location data** — a student's GPS coordinates are personal data; encrypting them in transit supports privacy obligations such as the Kenya Data Protection Act, 2019.
+5. **Integrity** — HTTPS prevents the scan request (token and coordinates) being altered in transit. The server still validates the position on its own, but a secure channel is the first layer.
+
+**Self-signed certificate:** the XAMPP certificate gives the same encryption strength as a public one. The browser warning appears only because no certificate authority has vouched for it, which is acceptable for a local demonstration. In a real deployment the institution would use a trusted certificate (for example Let's Encrypt) and the warning would not appear.
+
+**Why not only `localhost`?** It works only on the laptop itself. Students scan with their own phones, so the system needs a secure address that phones can reach.
+
+The application detects a non-secure connection and shows a warning banner with a manual fallback. You have two options:
 
 **Option A — present from the laptop (simplest, always works)**
 Open `http://localhost/gps_qr_attendance`. `localhost` counts as secure, so the camera and geolocation both work.
