@@ -85,7 +85,7 @@ require APP_ROOT . '/includes/header.php';
                 <div class="help mono" id="token-url" style="word-break:break-all;font-size:.72rem;margin-top:.4rem"></div>
 
                 <div class="alert alert-info" style="margin-top:.9rem;margin-bottom:0;font-size:.8rem">
-                    Project this screen. The code changes every <?= (int) QR_TOKEN_TTL ?> seconds, so a screenshot
+                    The code changes every <?= (int) QR_TOKEN_TTL ?> seconds, so a screenshot
                     sent to an absent classmate will not work. Students must also be inside the
                     <?= (int) $session['geofence_radius'] ?> m geofence to be marked present.
                 </div>

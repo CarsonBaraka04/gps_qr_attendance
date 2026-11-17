@@ -282,7 +282,7 @@ require APP_ROOT . '/includes/header.php';
             <tr><th>Default geofence</th><td><?= (int) DEFAULT_GEOFENCE_RADIUS ?> m</td></tr>
             <tr><th>Late threshold</th><td><?= (int) LATE_AFTER_MINUTES ?> minutes after the start time</td></tr>
             <tr><th>Time zone</th><td class="mono"><?= e(date_default_timezone_get()) ?></td></tr>
-            <tr><th>Debug mode</th><td><?= DEBUG_MODE ? '<span class="badge badge-warn">ON — turn off before the defence</span>' : '<span class="badge badge-ok">Off</span>' ?></td></tr>
+            <tr><th>Debug mode</th><td><?= DEBUG_MODE ? '<span class="badge badge-warn">OFF</span>' : '<span class="badge badge-ok">Off</span>' ?></td></tr>
             <tr><th>Server time</th><td class="mono"><?= e(date('d M Y H:i:s')) ?></td></tr>
             </tbody>
         </table>
